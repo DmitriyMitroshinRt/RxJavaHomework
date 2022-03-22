@@ -20,13 +20,63 @@ fun main() {
     //
     //  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
     //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
+
+    println("First task:")
+    requestDataFromServerAsync()
+        .blockingSubscribe(
+            {
+                println("Success")
+                println(it)
+            },
+            {
+                println(it.message)
+            },
+            {
+                println("Null")
+            }
+        )
+
+    println("Second task:")
+    requestServerAsync()
+        .blockingSubscribe(
+            {
+                println("Success")
+            },
+            {
+                println("Error")
+                println(it.message)
+            }
+        )
+
+    println("Third task:")
+    requestDataFromDbAsync<Int>()
+        .blockingSubscribe(
+            {
+                println("Success")
+                println(it)
+            },
+            {
+                println(it.message)
+            },
+            {
+                println("Null")
+            }
+        )
+
+    println("Fourth task:")
+//    emitEachSecond();
+
+    println("Fifth task:")
+    xMap { flatMapCompletable(it) }
+    xMap { concatMapCompletable(it) }
+    xMap { switchMapCompletable(it) }
 }
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
 // Почему?
+// Maybe т.к. кроме результата ожидается возвращение пустого ответа (null)
 // Дописать функцию
-fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
-
+fun requestDataFromServerAsync(): Maybe<ByteArray> {
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
         Thread.sleep(LATENCY);
@@ -34,14 +84,15 @@ fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
     }
 
-    /* return ??? */
+    return Maybe.fromCallable { getDataFromServerSync() }
 }
 
 
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
 // Почему?
+// Completable т.к. не важен результат, важен лишь факт выполнения запроса (с ошибкой или без)
 // Дописать функцию
-fun requestServerAsync() /* -> ??? */ {
+fun requestServerAsync(): Completable {
 
     // Функция имитирует синхронный запрос на сервер, не возвращающий результат
     fun getDataFromServerSync() {
@@ -49,20 +100,22 @@ fun requestServerAsync() /* -> ??? */ {
         if (Random.nextBoolean()) throw ServerNotActiveException()
     }
 
-    /* return ??? */
+    return Completable.fromCallable { getDataFromServerSync() }
+
 }
 
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
 // Почему?
+// Maybe т.к. кроме результата ожидается возвращение пустого ответа (null)
 // Дописать функцию
-fun <T> requestDataFromDbAsync() /* -> ??? */ {
+fun <T> requestDataFromDbAsync(): Maybe<T> {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
         Thread.sleep(LATENCY); return null
     }
 
-    /* return */
+    return Maybe.fromCallable { getDataFromDbSync() }
 }
 
 // 4) Примените к источнику оператор (несколько операторов), которые приведут к тому, чтобы элемент из источника
@@ -78,6 +131,10 @@ fun emitEachSecond() {
     fun printer(value: Long) = println("${Date()}: value = $value")
 
     // code here
+    source()
+        .filter { it % 2 == 0L }
+        .map { it / 2 }
+        .blockingSubscribe(::printer)
 }
 
 // 5) Функция для изучения разницы между операторами concatMap, flatMap, switchMap
