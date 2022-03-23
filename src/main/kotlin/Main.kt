@@ -1,6 +1,4 @@
-import io.reactivex.rxjava3.core.Completable
-import io.reactivex.rxjava3.core.Flowable
-import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.core.*
 import java.rmi.server.ServerNotActiveException
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -9,23 +7,49 @@ import kotlin.random.Random
 private const val LATENCY = 700L
 private const val RESPONSE_LENGTH = 2048
 
-fun main() {
-    // Функции можно вызывать отсюда для проверки
-    //  для ДЗ лучше использовать blockingSubscribe вместо subscribe потому что subscribe подпишется на изменения,
-    //  но изменения в большинстве случаев будут получены позже, чем выполнится функция main, поэтому в консоли ничего
-    //  не будет выведено. blockingSubscribe работает синхронно, поэтому результат будет выведен в консоль
-    //
-    //  В реальных программах нужно использовать subscribe или передавать данные от источника к источнику для
-    //  асинхронного выполнения кода.
-    //
-    //  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
-    //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
+fun main(args: Array<String>) {
+
+    // Домашнее задание №2 студента Сергея Тарасова
+    // Tasks 1, 2, 3
+    println("Tasks 1, 2, 3\n**************")
+    for (i in 0..3) {
+        requestDataFromServerAsync()
+            .blockingSubscribe({ println("Success: $it") }, { println("Error: ${it.message}") },
+                { println("Complete") })
+
+        requestServerAsync()
+            .blockingSubscribe({ println("Success") }, { println("Error: ${it.message}") })
+
+        requestDataFromDbAsync<String>()
+    }
+
+    // Task 4
+    println("Task 4 \n**************")
+    emitEachSecond()
+
+    // Task 5
+    println("Task 5 \n**************")
+//    xMap { flatMapCompletable(it) } // закомментировал, т.к. код выполняется бесконечно
+    xMap { concatMapCompletable(it) }
+    xMap { switchMapCompletable(it) }
 }
+
+// Функции можно вызывать отсюда для проверки
+//  для ДЗ лучше использовать blockingSubscribe вместо subscribe потому что subscribe подпишется на изменения,
+//  но изменения в большинстве случаев будут получены позже, чем выполнится функция main, поэтому в консоли ничего
+//  не будет выведено. blockingSubscribe работает синхронно, поэтому результат будет выведен в консоль
+//
+//  В реальных программах нужно использовать subscribe или передавать данные от источника к источнику для
+//  асинхронного выполнения кода.
+//
+//  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
+//  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
 // Почему?
 // Дописать функцию
-fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
+
+fun requestDataFromServerAsync(): Maybe<ByteArray> {
 
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
@@ -33,36 +57,36 @@ fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
         val success = Random.nextBoolean()
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
     }
-
-    /* return ??? */
+    return Maybe.fromCallable { getDataFromServerSync() }
 }
 
 
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
 // Почему?
 // Дописать функцию
-fun requestServerAsync() /* -> ??? */ {
+
+fun requestServerAsync(): Completable {
 
     // Функция имитирует синхронный запрос на сервер, не возвращающий результат
     fun getDataFromServerSync() {
         Thread.sleep(LATENCY)
         if (Random.nextBoolean()) throw ServerNotActiveException()
     }
-
-    /* return ??? */
+    return Completable.fromCallable { getDataFromServerSync() }
 }
 
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
 // Почему?
 // Дописать функцию
-fun <T> requestDataFromDbAsync() /* -> ??? */ {
+fun <T> requestDataFromDbAsync(): Unit {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
         Thread.sleep(LATENCY); return null
     }
 
-    /* return */
+    return Single.fromCallable { getDataFromDbSync() }
+        .blockingSubscribe({ println("Success: $it") }, { println("Error: ${it.message}") })
 }
 
 // 4) Примените к источнику оператор (несколько операторов), которые приведут к тому, чтобы элемент из источника
@@ -78,6 +102,7 @@ fun emitEachSecond() {
     fun printer(value: Long) = println("${Date()}: value = $value")
 
     // code here
+    source().filter{it % 2L == 0L}.map{it / 2L}.blockingSubscribe(::printer)
 }
 
 // 5) Функция для изучения разницы между операторами concatMap, flatMap, switchMap
@@ -102,10 +127,8 @@ fun xMap(mapper: Flowable<Int>.(internalMapper: (Int) -> Completable) -> Complet
     println("${Date()}: start")
     Flowable.fromIterable(0..20)
         .mapper { iterableIndex ->
-
             waitOneSecond()
                 .doOnComplete { println("${Date()}: finished operation for iterable index $iterableIndex") }
-
         }
         .blockingSubscribe()
 }
