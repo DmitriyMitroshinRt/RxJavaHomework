@@ -97,6 +97,7 @@ fun main() {
         var result: Int? = requestDataFromDbAsync<Int?>()    }
     ).onErrorComplete(println("eee"))
 */
+    //
     //onErrorComplete(result: Throwable -> println("--"))
 
     /* blockingSubscribe({println("Successful");},
