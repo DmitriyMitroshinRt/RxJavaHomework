@@ -1,6 +1,7 @@
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.core.Single
 import java.rmi.server.ServerNotActiveException
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -30,9 +31,9 @@ fun main() {
 }
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
-// Почему? Maybe позволяет обработать null в источнике данных
+// Почему? Single сгенерирует ошибку, в случае отсутсвия значение, а мы всегда ожидаем результат
 // Дописать функцию
-fun requestDataFromServerAsync(): ByteArray?/* -> ???<ByteArray> */ {
+fun requestDataFromServerAsync(): ByteArray/* -> ???<ByteArray> */ {
 
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
@@ -41,14 +42,12 @@ fun requestDataFromServerAsync(): ByteArray?/* -> ???<ByteArray> */ {
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
     }
 
-    var result: ByteArray? = null
-    Maybe.fromCallable<Any> { getDataFromServerSync() }
-        .blockingSubscribe({
+    lateinit var result: ByteArray
+    Single.fromCallable<ByteArray> { getDataFromServerSync() }
+        .blockingSubscribe {
             println(it)
-            result = it as ByteArray?
-        }, { it.printStackTrace() }, {
-            println("complete")
-        })
+            result = it
+        }
     /* return ??? */
     return result
 }
@@ -88,7 +87,7 @@ fun <T> requestDataFromDbAsync(): T? /* -> ??? */ {
     Maybe.fromCallable<Any> { getDataFromDbSync() }
         .blockingSubscribe({
             println("requestDataFromDbAsync $it success")
-                result = it as T
+            result = it as T
         },
             { println("requestDataFromDbAsync error") },
             {
