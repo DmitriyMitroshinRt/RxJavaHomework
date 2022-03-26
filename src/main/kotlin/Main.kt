@@ -1,6 +1,5 @@
-import io.reactivex.rxjava3.core.Completable
-import io.reactivex.rxjava3.core.Flowable
-import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.annotations.NonNull
+import io.reactivex.rxjava3.core.*
 import java.rmi.server.ServerNotActiveException
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -10,38 +9,47 @@ private const val LATENCY = 700L
 private const val RESPONSE_LENGTH = 2048
 
 fun main() {
-    // Функции можно вызывать отсюда для проверки
-    //  для ДЗ лучше использовать blockingSubscribe вместо subscribe потому что subscribe подпишется на изменения,
-    //  но изменения в большинстве случаев будут получены позже, чем выполнится функция main, поэтому в консоли ничего
-    //  не будет выведено. blockingSubscribe работает синхронно, поэтому результат будет выведен в консоль
-    //
-    //  В реальных программах нужно использовать subscribe или передавать данные от источника к источнику для
-    //  асинхронного выполнения кода.
-    //
-    //  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
-    //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
+    println("first:")
+    requestDataFromServerAsync().blockingSubscribe(
+        { println("array size - ${it.size}") },
+        { println("error") })
+
+    println("second:")
+    requestServerAsync().blockingSubscribe({ println("Запрос выполнен") }, { println("Ошибка при запросе в БД") })
+
+    println("third:")
+    requestDataFromDbAsync<String>().blockingSubscribe(
+        { println(it) },
+        { println(it.printStackTrace()) },
+        { println("Элемент отсутствует") })
+
+    println("fourth:")
+    emitEachSecond()
+
+    //xMap { flatMapCompletable(it) }
+    //xMap { concatMapCompletable(it) }
+    //xMap { switchMapCompletable(it) }
 }
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
-// Почему?
-// Дописать функцию
-fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
+// Single. Т.к мы ожидаемый результат, который или есть или нет. Таким образом мы или его получаем или даем експшн, что его нет.
+fun requestDataFromServerAsync(): @NonNull Single<ByteArray> /* -> ???<ByteArray> */ {
 
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
-        Thread.sleep(LATENCY);
+        Thread.sleep(LATENCY)
         val success = Random.nextBoolean()
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
     }
 
     /* return ??? */
+    return Single.fromCallable { getDataFromServerSync() }
 }
 
 
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
-// Почему?
-// Дописать функцию
-fun requestServerAsync() /* -> ??? */ {
+// Completable не выполняет какого-то действия, однако можно узнать успешность выполнения запроса.
+fun requestServerAsync(): @NonNull Completable /* -> ??? */ {
 
     // Функция имитирует синхронный запрос на сервер, не возвращающий результат
     fun getDataFromServerSync() {
@@ -49,20 +57,36 @@ fun requestServerAsync() /* -> ??? */ {
         if (Random.nextBoolean()) throw ServerNotActiveException()
     }
 
+    fun getDataFromServerSyncWithoutError() {
+        Thread.sleep(LATENCY)
+        println("Что-то")
+    }
+
     /* return ??? */
+    return Completable.fromCallable { getDataFromServerSync() }
 }
 
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
-// Почему?
-// Дописать функцию
-fun <T> requestDataFromDbAsync() /* -> ??? */ {
+// Maybe. Т.к запрос однократный и тут скорее всего мы не ожидаем результат. Поэтому мы вернем либо 0 либо 1 или среагируем на ошибку
+fun <T> requestDataFromDbAsync(): @NonNull Maybe<T> {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
         Thread.sleep(LATENCY); return null
     }
 
+    fun getDataFromDbSyncWithResult(): T? {
+        val x = "test"
+        Thread.sleep(LATENCY); return x as T
+    }
+
+    fun getDataFromDbSyncWithError(): T? {
+        val x = "test"
+        Thread.sleep(LATENCY); return x.toInt() as T
+    }
+
     /* return */
+    return Maybe.fromCallable { getDataFromDbSync() }
 }
 
 // 4) Примените к источнику оператор (несколько операторов), которые приведут к тому, чтобы элемент из источника
@@ -78,6 +102,11 @@ fun emitEachSecond() {
     fun printer(value: Long) = println("${Date()}: value = $value")
 
     // code here
+
+    source()
+        .filter { it % 2 == 0L }
+        .map { it / 2 }
+        .blockingSubscribe(::printer)
 }
 
 // 5) Функция для изучения разницы между операторами concatMap, flatMap, switchMap
