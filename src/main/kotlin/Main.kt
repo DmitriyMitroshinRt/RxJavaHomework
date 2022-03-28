@@ -1,6 +1,7 @@
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.core.Single
 import java.rmi.server.ServerNotActiveException
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -20,12 +21,40 @@ fun main() {
     //
     //  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
     //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
+
+    // 1
+    requestDataFromServerAsync().subscribe(
+        { println("requestDataFromServerAsync: $it") },
+        { println("requestDataFromServerAsync error: $it") }
+    )
+
+    // 2
+    requestServerAsync().subscribe(
+        { println("requestServerAsync: complete") },
+        { println("requestServerAsync error: $it") }
+    )
+
+    // 3
+    requestDataFromDbAsync<String>().subscribe(
+        { println("requestDataFromDbAsync: $it") },
+        { println("requestDataFromDbAsync error: $it") },
+        { println("requestDataFromDbAsync: null (complete)") }
+    )
+
+    // 4
+    emitEachSecond()
+
+    // 5
+    xMap { flatMapCompletable(it) }
+    xMap { concatMapCompletable(it) }
+    xMap { switchMapCompletable(it) }
 }
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
 // Почему?
-// Дописать функцию
-fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
+// The Single class implements the Reactive Pattern for a single value response.
+// но т.к. по коду есть вероятность возвращения нулл, то вообще Maybe выглядит предпочтительнее
+fun requestDataFromServerAsync(): Single<ByteArray> {
 
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
@@ -34,14 +63,13 @@ fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
     }
 
-    /* return ??? */
+    return Single.fromSupplier { getDataFromServerSync() }
 }
-
 
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
 // Почему?
-// Дописать функцию
-fun requestServerAsync() /* -> ??? */ {
+// The Completable class represents a deferred computation without any value but only indication for completion or exception
+fun requestServerAsync(): Completable {
 
     // Функция имитирует синхронный запрос на сервер, не возвращающий результат
     fun getDataFromServerSync() {
@@ -49,20 +77,20 @@ fun requestServerAsync() /* -> ??? */ {
         if (Random.nextBoolean()) throw ServerNotActiveException()
     }
 
-    /* return ??? */
+    return Completable.fromAction { getDataFromServerSync() }
 }
 
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
 // Почему?
-// Дописать функцию
-fun <T> requestDataFromDbAsync() /* -> ??? */ {
+// The Maybe class represents a deferred computation and emission of a single value, no value at all or an exception.
+fun <T> requestDataFromDbAsync(): Maybe<T> {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
         Thread.sleep(LATENCY); return null
     }
 
-    /* return */
+    return Maybe.fromSupplier { getDataFromDbSync() }
 }
 
 // 4) Примените к источнику оператор (несколько операторов), которые приведут к тому, чтобы элемент из источника
@@ -77,7 +105,22 @@ fun emitEachSecond() {
     // Принтер
     fun printer(value: Long) = println("${Date()}: value = $value")
 
-    // code here
+// мой вариант
+//    source().filter { it % 2 == 0L }
+//        .map { it / 2 }
+//        .takeWhile { it < 10 }
+//        .blockingSubscribe(::printer)
+
+// подсмотрел у коллеги, переделал чтобы значения "проходили" от source
+// вроде как .concatMap { Flowable.interval(1000, TimeUnit.MILLISECONDS) } просто вернет новую последовательность, и исходные будут потеряны
+    source()
+        .onBackpressureBuffer()
+        .concatMap { sourceValue ->
+            Flowable.timer(1000, TimeUnit.MILLISECONDS)
+                .map { sourceValue }
+        }
+        .takeWhile { it < 10 }
+        .blockingSubscribe(::printer)
 }
 
 // 5) Функция для изучения разницы между операторами concatMap, flatMap, switchMap
