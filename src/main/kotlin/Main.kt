@@ -1,6 +1,7 @@
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.core.Single
 import java.rmi.server.ServerNotActiveException
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -20,12 +21,34 @@ fun main() {
     //
     //  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
     //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
+
+    println("=== ex 1 ===")
+    requestDataFromServerAsync().blockingSubscribe({ println(it) }, { println("error: ${it.message}") })
+
+    println("=== ex 2 ===")
+    requestServerAsync().blockingSubscribe({ println("complete") }, { println("error") })
+
+    println("=== ex 3 ===")
+    requestDataFromDbAsync<Int>().blockingSubscribe({ println(it) }, { println("error: ${it.message}") }, { println("complete") })
+
+//    println("=== ex 4 ===")
+//    emitEachSecond()
+
+    println("=== ex 5 ===")
+    println("\t flatMapCompletable ")
+    xMap { flatMapCompletable(it) }
+    println("\n\t concatMapCompletable")
+    xMap { concatMapCompletable (it) }
+    println("\n\t switchMapCompletable")
+    xMap { switchMapCompletable(it) }
+
+
 }
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
-// Почему?
+// Почему?  Single -- делает 1 запрос и возвращает результат, либо ошибку
 // Дописать функцию
-fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
+fun requestDataFromServerAsync() : Single<ByteArray> /* -> ???<ByteArray> */ {
 
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
@@ -35,13 +58,14 @@ fun requestDataFromServerAsync() /* -> ???<ByteArray> */ {
     }
 
     /* return ??? */
+    return Single.fromCallable{getDataFromServerSync()}
 }
 
 
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
-// Почему?
+// Почему? Completable -- не возвращает результат. Может либо исполнится либо ошибка
 // Дописать функцию
-fun requestServerAsync() /* -> ??? */ {
+fun requestServerAsync() : Completable /* -> ??? */ {
 
     // Функция имитирует синхронный запрос на сервер, не возвращающий результат
     fun getDataFromServerSync() {
@@ -50,12 +74,13 @@ fun requestServerAsync() /* -> ??? */ {
     }
 
     /* return ??? */
+    return Completable.fromAction{getDataFromServerSync()}
 }
 
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
-// Почему?
+// Почему? Maybe -- может вернуть null. Возвращает один результат, есть возможность обработать ошибку
 // Дописать функцию
-fun <T> requestDataFromDbAsync() /* -> ??? */ {
+fun <T> requestDataFromDbAsync() : Maybe<T> /* -> ??? */ {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
@@ -63,6 +88,7 @@ fun <T> requestDataFromDbAsync() /* -> ??? */ {
     }
 
     /* return */
+    return Maybe.fromCallable { getDataFromDbSync() }
 }
 
 // 4) Примените к источнику оператор (несколько операторов), которые приведут к тому, чтобы элемент из источника
@@ -78,6 +104,14 @@ fun emitEachSecond() {
     fun printer(value: Long) = println("${Date()}: value = $value")
 
     // code here
+    source()
+        .filter {
+            it % 2L == 0L
+        }
+        .map {
+            it / 2
+        }
+        .blockingSubscribe(::printer)
 }
 
 // 5) Функция для изучения разницы между операторами concatMap, flatMap, switchMap
@@ -91,9 +125,9 @@ fun emitEachSecond() {
 //
 // Вызов осуществлять поочерёдно из функции main
 //
-//  xMap { flatMapCompletable(it) }
-//  xMap { concatMapCompletable (it) }
-//  xMap { switchMapCompletable(it) }
+//  xMap { flatMapCompletable(it) }  -- разбить на максимальное кол-во потоков, порядок не важен
+//  xMap { concatMapCompletable (it) } -- отбрабатывает каждый элемент последовательно, дожидаясь окончания обработки
+//  xMap { switchMapCompletable(it) } -- обрабатывает только последнее значение, остальные отбрасывает
 //
 fun xMap(mapper: Flowable<Int>.(internalMapper: (Int) -> Completable) -> Completable) {
 
@@ -109,3 +143,20 @@ fun xMap(mapper: Flowable<Int>.(internalMapper: (Int) -> Completable) -> Complet
         }
         .blockingSubscribe()
 }
+
+//abstract class Publisher<T>{
+//    private val subscribers: MutableList<Subscriber<T>> = mutableListOf()
+//
+//    fun subscribe(s :Subscriber<T>) {
+//        subscribers.add(s)
+//    }
+//
+//    fun unsubscribe(s: Subscriber<T>){
+//        subscribers.remove(s)
+//    }
+//}
+//
+//
+//interface Subscriber<T> {
+//    fun onNext(event: T)
+//}
