@@ -26,12 +26,12 @@ fun main() {
     //  Несмотря на то, что в некоторых заданиях фигурируют слова "синхронный" и "асинхронный" в рамках текущего ДЗ
     //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
 
-/*    println("1:")
+    println("1:")
     requestDataFromServerAsync()
     println("2:")
     requestServerAsync()
     println("3:")
-    requestDataFromDbAsync<String>()*/
+    requestDataFromDbAsync<String>()
     println("4:")
     emitEachSecond()
     println("5:")
