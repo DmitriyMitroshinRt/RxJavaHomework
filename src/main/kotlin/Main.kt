@@ -1,7 +1,11 @@
+import io.reactivex.rxjava3.annotations.NonNull
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Maybe
+import io.reactivex.rxjava3.core.Maybe.just
+import io.reactivex.rxjava3.core.Observable.just
 import io.reactivex.rxjava3.core.Single
+import io.reactivex.rxjava3.core.Single.just
 import java.rmi.server.ServerNotActiveException
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -23,41 +27,46 @@ fun main() {
     //  это всего лишь имитация, реальное переключение между потоками будет рассмотрено на следующем семинаре
 
     println("1:")
-    requestDataFromServerAsync().blockingSubscribe({println(it)},{println("error: $it")})
+    requestDataFromServerAsync()
     println("2:")
-    requestServerAsync().blockingSubscribe { println("complete") }
+    requestServerAsync()
     println("3:")
-    requestDataFromDbAsync<String>().blockingSubscribe({println(it)},{println("error: $it")})
+    requestDataFromDbAsync<String>()
     println("4:")
     emitEachSecond()
-    println("5: подписываемся на все и ждём общее окончание")
+    println("5:")
     xMap { flatMapCompletable(it) }
-    println("5: подписываемся на все, выполняются по порядку")
     xMap { concatMapCompletable (it) }
-    println("5: берём последний")
     xMap { switchMapCompletable(it) }
 }
 
 // 1) Какой источник лучше всего подойдёт для запроса на сервер, который возвращает результат?
 // Почему?
 // Дописать функцию
-fun requestDataFromServerAsync() : Single<ByteArray> {
+fun requestDataFromServerAsync() {
 
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
-        Thread.sleep(LATENCY)
+        Thread.sleep(LATENCY);
         val success = Random.nextBoolean()
         return if (!success) Random.nextBytes(RESPONSE_LENGTH) else null
     }
 
-    return Single.fromCallable{getDataFromServerSync()}
+    return Single.just<ByteArray>(getDataFromServerSync())
+        .blockingSubscribe(
+            {
+                println(it)
+            },
+            {
+                println("null")
+            })
 
 }
 
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
 // Почему?
 // Дописать функцию
-fun requestServerAsync(): Completable {
+fun requestServerAsync(): @NonNull Maybe<Any> {
 
     // Функция имитирует синхронный запрос на сервер, не возвращающий результат
     fun getDataFromServerSync() {
@@ -65,20 +74,20 @@ fun requestServerAsync(): Completable {
         if (Random.nextBoolean()) throw ServerNotActiveException()
     }
 
-    return Completable.fromAction{getDataFromServerSync()}
+    return Maybe.just<Any>(getDataFromServerSync()).onErrorComplete()
 }
 
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
 // Почему?
 // Дописать функцию
-fun <T> requestDataFromDbAsync(): Maybe<T> /* -> ??? */ {
+fun <T> requestDataFromDbAsync() /* -> ??? */ {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
         Thread.sleep(LATENCY); return null
     }
 
-    return Maybe.fromCallable{getDataFromDbSync()}
+    return Single.just(getDataFromDbSync()).blockingSubscribe {println(it)}
 }
 
 // 4) Примените к источнику оператор (несколько операторов), которые приведут к тому, чтобы элемент из источника
@@ -95,10 +104,7 @@ fun emitEachSecond() {
 
     //println (source().delay(500, TimeUnit.MILLISECONDS).map { (it / 500) - 1 })
     source()
-        .take(5)
-        .filter {
-            it % 2 == 0L
-        }
+        .delay(500, TimeUnit.MILLISECONDS)
         .blockingSubscribe(::printer)
 }
 
