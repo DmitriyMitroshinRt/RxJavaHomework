@@ -30,32 +30,24 @@ fun main() {
 
 
     println("Start Q1");
-/*
-    val count = -1
-    require(count >= 0)    { println("Count must be non-negative, was $count") }
-    require(requestServerAsync() !is Unit) { println("kuku") }
-    //println("require(requestServerAsync() is Unit)"+require(requestServerAsync() is Unit));
-*/
-    Maybe.fromCallable( {
+    Maybe.fromCallable {
         var result: ByteArray? = requestDataFromServerAsync2()
-        //    val result: <String> = "";
         result
-    }).blockingSubscribe(
-        {s : ByteArray? ->  println("2Item received: from Maybe"+s.contentToString()); },
+        }?.blockingSubscribe({ s : ByteArray? ->  println("2Item received: from Maybe"+s.contentToString()); },
         { obj: Throwable -> obj.printStackTrace() } )
-    { println("2Done from MaybeSource") }
+       { println("2Done from MaybeSource") }
 
     requestDataFromServerAsync().blockingSubscribe(
         {s : ByteArray? ->  println("Item received: from Maybe"+s.contentToString()); },
         { obj: Throwable -> obj.printStackTrace() } )
-    { println("Done from MaybeSource") }
+        { println("Done from MaybeSource") }
 
     println("Finished Q1");
 
     println("Start Q2");
     Completable.fromCallable ( object: Callable<Unit> {
-        override fun call(): Unit { requestServerAsync2()}} ).
-    subscribe({println("2Successful");},
+         override fun call(): Unit { requestServerAsync2()}} ).
+         subscribe({println("2Successful");},
         { obj: Throwable -> obj.printStackTrace() } );
 
     requestServerAsync().subscribe({println("Successful");},
@@ -66,19 +58,16 @@ fun main() {
     Single.fromCallable ({
         var result: Int? =  requestDataFromDbAsync2<Int?>()
          result
-    }
-    ).onErrorComplete{throwable : Throwable -> throwable is NullPointerException}.
-    blockingSubscribe({println("2S_Item received: from Single:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("2S_Item received: from Single:null")});
+                       }).onErrorComplete{throwable : Throwable -> throwable is NullPointerException}
+        .blockingSubscribe({println("2S_Item received: from Single:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("2S_Item received: from Single:null")});
 
-    requestDataFromDbAsyncSingle<Int?>().onErrorComplete{throwable : Throwable -> throwable is NullPointerException}.
-    blockingSubscribe({println("Item received: from Single:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("Item received: from Single:null")});
+    requestDataFromDbAsyncSingle<Int?>().onErrorComplete{throwable : Throwable -> throwable is NullPointerException}
+        ?.blockingSubscribe({println("Item received: from Single:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("Item received: from Single:null")});
 
-///
-    Maybe.fromCallable ({
-        var result: Int? =  requestDataFromDbAsync2<Int?>()
+    Maybe.fromCallable {
+        var result: Int? = requestDataFromDbAsync2<Int?>()
         result
-    }
-    ).blockingSubscribe({println("2M_Item received: from Maybe:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("2M_Item received: from Maybe: null")});
+    }?.blockingSubscribe({println("2M_Item received: from Maybe:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("2M_Item received: from Maybe: null")});
 
     requestDataFromDbAsync<Any?>().blockingSubscribe({println("Any? -Item received: from Maybe:$it")}, { obj: Throwable -> obj.printStackTrace() },{println("Any? Item received: from Maybe: null")});
     // Конкретный тип
@@ -106,14 +95,11 @@ fun main() {
 //  ну и null  в отличии от Single допускает...
 //  Можно использовать Observable - но он как бы depricated ? ибо -  MissingBackpressureException или OutOfMemoryError
 // но согласно спекам (*) - он подходит на все случаи
-/*В RxJava  есть три специализированных источника, представляющих собой подмножество Observable.
-(Single Completable Maybe)
-Третий тип — Maybe.
-Он может либо содержать элемент, либо выдать ошибку, либо не содержать данных — этакий реактивный Optional.
-*/
+// В RxJava  есть три специализированных источника, представляющих собой подмножество Observable.(Single Completable Maybe)
+// Третий тип — Maybe.
 // Почему?
+// Он может либо содержать элемент, либо выдать ошибку, либо не содержать данных — этакий реактивный Optional.
 // Согласно лекции номер 2
-//Он может либо содержать элемент, либо выдать ошибку, либо не содержать данных — этакий реактивный Optional.
 // Дописать функцию
 fun requestDataFromServerAsync2() : ByteArray? /* -> ???<ByteArray> */ {
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
@@ -121,20 +107,17 @@ fun requestDataFromServerAsync2() : ByteArray? /* -> ???<ByteArray> */ {
         Thread.sleep(LATENCY);
         val success = Random.nextBoolean()
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
-        //return  Random.nextBytes(RESPONSE_LENGTH)
-
     }
     return getDataFromServerSync()
     /* return ??? */
 }
 
-fun requestDataFromServerAsync() : Maybe<ByteArray?> /* ByteArray? *//* -> ???<ByteArray> */ {
+fun requestDataFromServerAsync() : Maybe<ByteArray?> /* -> ???<ByteArray> */ {
     // Функция имитирует синхронный запрос на сервер, возвращающий результат
     fun getDataFromServerSync(): ByteArray? {
         Thread.sleep(LATENCY);
         val success = Random.nextBoolean()
         return if (success) Random.nextBytes(RESPONSE_LENGTH) else null
-        //return  Random.nextBytes(RESPONSE_LENGTH)
 
     }
     return Maybe.fromCallable { getDataFromServerSync() }
@@ -145,11 +128,10 @@ fun requestDataFromServerAsync() : Maybe<ByteArray?> /* ByteArray? *//* -> ???<B
 // 2) Какой источник лучше всего подойдёт для запроса на сервер, который НЕ возвращает результат?
 //Completable
 // Почему?
-// По определению ..- заточен на какое то действие без возврата результата - а ля типа procedure vs function
+// По определению ..- заточен на какое то действие без возврата результата - а ля типа procedure(void-метод) vs function
+// Он либо успешно завершает свою работу без каких-либо данных, либо бросает исключение.
+// То есть это некий кусок кода, который можно запустить, и он либо успешно выполнится, либо завершится сбоем.
 // по реализации - можно  завернуть  иксепшен что бы не делать сверху генерации ошибки - ну если это надо.
-//Он похож на void-метод.
-//Он либо успешно завершает свою работу без каких-либо данных, либо бросает исключение.
-//То есть это некий кусок кода, который можно запустить, и он либо успешно выполнится, либо завершится сбоем.
 // Дописать функцию
 fun requestServerAsync2() :Unit  /* -> ??? */ {
 
@@ -173,37 +155,20 @@ fun requestServerAsync() : Completable /*Unit*//* -> ??? */ {
     /* return ??? */
 }
 // 3) Какой источник лучше всего подойдёт для однократного асинхронного возвращения значения из базы данных?
-//   Можно конечно использовать Maybe- Но неуверен насчет однократного ? (возвращает null в отличии  Single ) НО
-// Single согласно документации одно "испускание" делает.
-//Он либо содержит один элемент, либо выдаёт ошибку,
-//так что это не столько последовательность элементов,
-//сколько потенциально асинхронный источник одиночного элемента.
-//Можете представлять его себе как обычный метод.
-//Вы вызываете метод и получаете возвращаемое значение; либо метод бросает исключение.
-// Только вот как при проброске исключения сделать что бы Single возвращал значение.
-// - соответственно через обработчик ошибки
-// на null - обойдем это
+// Можно конечно использовать Maybe-  возвращает null в отличии  Single
+// А Single либо содержит один элемент, либо выдаёт ошибку,
+// можно представлять его себе как обычный метод.
+// Вы вызываете метод и получаете возвращаемое значение; либо метод бросает исключение.
+// Только вот как при проброске исключения сделать что бы Single возвращал значение ?
+// через обработчик ошибки  на null ? - обойти это
 // Сделал и так и этак - см. выше
 // Почему?
 //  Больше склоняюсь к maybe - ибо -   может либо содержать элемент, либо выдать ошибку, либо не содержать данных
-//  — этакий реактивный Optional. - но в условиях сказано что для однократного - это смущает - и пишете
-// что ф-ция - не возвращающий результата - ?  - и как интепретировать возврат null - функция все же
-// что возвращает значение null ?
+//  Хотя...(непонятки) - а как такое может быть ? - Функция имитирует синхронный запрос к БД не возвращающий результата
+//  а в условиях задачи сказано что  - подойдёт для однократного асинхронного возвращения значения из базы данных
+//  хотя в принципе он(Single) и  подходит - а вот если засунут этот "шлямбур" с null -
+//  он выдаст ошибку - ибо просто ждет возвращаемого значения из бд
 
-// Непонятки - как такое может быть - Функция имитирует синхронный запрос к БД не возвращающий результата
-// - подойдёт для однократного асинхронного возвращения значения из базы данных?
-
-fun <T> requestDataFromDbAsync1() /* -> ??? */ {
-    // Функция имитирует синхронный запрос к БД не возвращающий результата
-    fun getDataFromDbSync(): T? {
-        Thread.sleep(LATENCY); return null
-    }
-    //NullPointerException
-    /* return */
-    return Maybe.fromCallable { getDataFromDbSync() }
-        .blockingSubscribe(
-            { println(":"+it) }, { println("database request error") }, { println("database request complete") })
-}
 
 // Дописать функцию
 fun <T> requestDataFromDbAsync2() : T? /* -> ??? */ {
@@ -233,7 +198,6 @@ fun <T> requestDataFromDbAsyncSingle() : Single<T?> /* -> ??? */ {
 
     // Функция имитирует синхронный запрос к БД не возвращающий результата
     fun getDataFromDbSync(): T? {
-        //val s : Int? = 1
         Thread.sleep(LATENCY); return null
     }
     return Single.fromCallable {getDataFromDbSync()}
